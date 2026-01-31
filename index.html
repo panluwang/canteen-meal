@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食堂就餐人数统计（管理员版）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "微软雅黑", sans-serif;
+        }
+        body {
+            padding: 20px;
+            max-width: 700px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #333;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 120px repeat(2, 1fr);
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .form-grid .header {
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+        .form-grid label {
+            text-align: right;
+            padding-right: 10px;
+        }
+        .form-grid input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f0f9ff;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #07c160;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #06b058;
+        }
+        .stat-result {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .stat-result h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .stat-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .stat-table th, .stat-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        .stat-table th {
+            background-color: #f8f8f8;
+        }
+        .tip {
+            color: #999;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>次日就餐人数录入（食堂管理员）</h2>
+        
+        <!-- 人数录入表单 -->
+        <div class="form-grid">
+            <!-- 表头 -->
+            <div class="header">专业</div>
+            <div class="header">午餐人数</div>
+            <div class="header">晚餐人数</div>
+            
+            <!-- 各专业输入框 -->
+            <label>工务线路：</label>
+            <input type="number" id="gwxl-lunch" min="0" value="0">
+            <input type="number" id="gwxl-dinner" min="0" value="0">
+            
+            <label>桥路：</label>
+            <input type="number" id="ql-lunch" min="0" value="0">
+            <input type="number" id="ql-dinner" min="0" value="0">
+            
+            <label>信号：</label>
+            <input type="number" id="xh-lunch" min="0" value="0">
+            <input type="number" id="xh-dinner" min="0" value="0">
+            
+            <label>车站：</label>
+            <input type="number" id="cz-lunch" min="0" value="0">
+            <input type="number" id="cz-dinner" min="0" value="0">
+            
+            <label>通信：</label>
+            <input type="number" id="tx-lunch" min="0" value="0">
+            <input type="number" id="tx-dinner" min="0" value="0">
+            
+            <label>供电：</label>
+            <input type="number" id="gd-lunch" min="0" value="0">
+            <input type="number" id="gd-dinner" min="0" value="0">
+            
+            <!-- 总计行（只读，自动计算） -->
+            <label class="total-row">总计：</label>
+            <input type="number" id="total-lunch" min="0" value="0" readonly>
+            <input type="number" id="total-dinner" min="0" value="0" readonly>
+        </div>
+        
+        <button onclick="saveData()">保存人数 & 刷新统计</button>
+        
+        <!-- 统计结果展示 -->
+        <div class="stat-result">
+            <h3>次日就餐人数统计</h3>
+            <table class="stat-table">
+                <thead>
+                    <tr>
+                        <th>专业</th>
+                        <th>午餐人数</th>
+                        <th>晚餐人数</th>
+                    </tr>
+                </thead>
+                <tbody id="stat-body">
+                    <!-- 数据会自动填充 -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="tip">注：数据保存在当前设备中，刷新页面后可点击按钮重新加载</div>
+    </div>
+
+    <script>
+        // 页面加载时自动计算总计 + 加载历史数据
+        window.onload = function() {
+            calculateTotal();
+            loadSavedData();
+            renderStatTable();
+        }
+        
+        // 实时计算总计（输入框变化时触发）
+        const numberInputs = document.querySelectorAll('input[type="number"]:not([readonly])');
+        numberInputs.forEach(input => {
+            input.addEventListener('input', calculateTotal);
+        });
+        
+        // 计算总计人数
+        function calculateTotal() {
+            // 读取各专业人数
+            const gwxlLunch = parseInt(document.getElementById('gwxl-lunch').value || 0);
+            const gwxlDinner = parseInt(document.getElementById('gwxl-dinner').value || 0);
+            const qlLunch = parseInt(document.getElementById('ql-lunch').value || 0);
+            const qlDinner = parseInt(document.getElementById('ql-dinner').value || 0);
+            const xhLunch = parseInt(document.getElementById('xh-lunch').value || 0);
+            const xhDinner = parseInt(document.getElementById('xh-dinner').value || 0);
+            const czLunch = parseInt(document.getElementById('cz-lunch').value || 0);
+            const czDinner = parseInt(document.getElementById('cz-dinner').value || 0);
+            const txLunch = parseInt(document.getElementById('tx-lunch').value || 0);
+            const txDinner = parseInt(document.getElementById('tx-dinner').value || 0);
+            const gdLunch = parseInt(document.getElementById('gd-lunch').value || 0);
+            const gdDinner = parseInt(document.getElementById('gd-dinner').value || 0);
+            
+            // 计算总计
+            const totalLunch = gwxlLunch + qlLunch + xhLunch + czLunch + txLunch + gdLunch;
+            const totalDinner = gwxlDinner + qlDinner + xhDinner + czDinner + txDinner + gdDinner;
+            
+            // 填充总计
+            document.getElementById('total-lunch').value = totalLunch;
+            document.getElementById('total-dinner').value = totalDinner;
+        }
+        
+        // 保存数据到本地存储
+        function saveData() {
+            // 构造数据对象
+            const mealData = {
+                date: new Date().toLocaleDateString(), // 录入日期
+                工务线路: {
+                    lunch: parseInt(document.getElementById('gwxl-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('gwxl-dinner').value || 0)
+                },
+                桥路: {
+                    lunch: parseInt(document.getElementById('ql-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('ql-dinner').value || 0)
+                },
+                信号: {
+                    lunch: parseInt(document.getElementById('xh-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('xh-dinner').value || 0)
+                },
+                车站: {
+                    lunch: parseInt(document.getElementById('cz-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('cz-dinner').value || 0)
+                },
+                通信: {
+                    lunch: parseInt(document.getElementById('tx-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('tx-dinner').value || 0)
+                },
+                供电: {
+                    lunch: parseInt(document.getElementById('gd-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('gd-dinner').value || 0)
+                },
+                总计: {
+                    lunch: parseInt(document.getElementById('total-lunch').value || 0),
+                    dinner: parseInt(document.getElementById('total-dinner').value || 0)
+                }
+            };
+            
+            // 保存到本地存储
+            localStorage.setItem('canteenMealData', JSON.stringify(mealData));
+            alert('人数保存成功！');
+            
+            // 刷新统计表格
+            renderStatTable();
+        }
+        
+        // 加载本地存储的历史数据
+        function loadSavedData() {
+            const savedData = JSON.parse(localStorage.getItem('canteenMealData') || '{}');
+            if (!savedData.date) return; // 无历史数据则返回
+            
+            // 填充各专业输入框
+            document.getElementById('gwxl-lunch').value = savedData.工务线路.lunch || 0;
+            document.getElementById('gwxl-dinner').value = savedData.工务线路.dinner || 0;
+            document.getElementById('ql-lunch').value = savedData.桥路.lunch || 0;
+            document.getElementById('ql-dinner').value = savedData.桥路.dinner || 0;
+            document.getElementById('xh-lunch').value = savedData.信号.lunch || 0;
+            document.getElementById('xh-dinner').value = savedData.信号.dinner || 0;
+            document.getElementById('cz-lunch').value = savedData.车站.lunch || 0;
+            document.getElementById('cz-dinner').value = savedData.车站.dinner || 0;
+            document.getElementById('tx-lunch').value = savedData.通信.lunch || 0;
+            document.getElementById('tx-dinner').value = savedData.通信.dinner || 0;
+            document.getElementById('gd-lunch').value = savedData.供电.lunch || 0;
+            document.getElementById('gd-dinner').value = savedData.供电.dinner || 0;
+        }
+        
+        // 渲染统计表格
+        function renderStatTable() {
+            const savedData = JSON.parse(localStorage.getItem('canteenMealData') || '{}');
+            const statBody = document.getElementById('stat-body');
+            statBody.innerHTML = ''; // 清空原有内容
+            
+            // 若无数据则提示
+            if (!savedData.date) {
+                statBody.innerHTML = '<tr><td colspan="3" style="color:#999;">暂无录入数据</td></tr>';
+                return;
+            }
+            
+            // 遍历数据填充表格
+            for (const [prof, data] of Object.entries(savedData)) {
+                if (prof === 'date') continue; // 跳过日期字段
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${prof}</td>
+                    <td>${data.lunch}</td>
+                    <td>${data.dinner}</td>
+                `;
+                statBody.appendChild(tr);
+            }
+        }
+    </script>
+</body>
+</html>
