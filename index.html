@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>食堂就餐人数统计（管理员版）</title>
+    <!-- 动态设置标题，包含准确日期 -->
+    <title id="pageTitle">食堂就餐人数统计（管理员版）</title>
     <style>
         * {
             margin: 0;
@@ -102,14 +103,15 @@
 </head>
 <body>
     <div class="container">
-        <h2>次日就餐人数录入（食堂管理员）</h2>
+        <!-- 动态显示准确日期的标题 -->
+        <h2 id="mainTitle">食堂就餐人数录入（食堂管理员）</h2>
         
         <!-- 人数录入表单 -->
         <div class="form-grid">
             <!-- 表头 -->
             <div class="header">专业</div>
-            <div class="header">午餐人数</div>
-            <div class="header">晚餐人数</div>
+            <div class="header" id="lunchHeader">午餐人数</div>
+            <div class="header" id="dinnerHeader">晚餐人数</div>
             
             <!-- 各专业输入框 -->
             <label>工务线路：</label>
@@ -146,13 +148,13 @@
         
         <!-- 统计结果展示 -->
         <div class="stat-result">
-            <h3>次日就餐人数统计</h3>
+            <h3 id="statTitle">就餐人数统计</h3>
             <table class="stat-table">
                 <thead>
                     <tr>
                         <th>专业</th>
-                        <th>午餐人数</th>
-                        <th>晚餐人数</th>
+                        <th id="statLunchTh">午餐人数</th>
+                        <th id="statDinnerTh">晚餐人数</th>
                     </tr>
                 </thead>
                 <tbody id="stat-body">
@@ -161,12 +163,39 @@
             </table>
         </div>
         
-        <div class="tip">注：数据保存在当前设备中，刷新页面后可点击按钮重新加载</div>
+        <div class="tip" id="tipText">注：数据保存在当前设备中，刷新页面后可点击按钮重新加载</div>
     </div>
 
     <script>
-        // 页面加载时自动计算总计 + 加载历史数据
+        // 核心函数：计算并格式化次日的准确日期（YYYY-MM-DD）
+        function getNextDayDate() {
+            const today = new Date();
+            const nextDay = new Date(today);
+            nextDay.setDate(today.getDate() + 1); // 日期+1，自动处理跨月/跨年
+            
+            // 格式化日期：补0确保月份/日期是两位数（比如1月→01月，5日→05日）
+            const year = nextDay.getFullYear();
+            const month = String(nextDay.getMonth() + 1).padStart(2, '0'); // 月份从0开始，需+1
+            const day = String(nextDay.getDate()).padStart(2, '0');
+            
+            return `${year}-${month}-${day}`;
+        }
+
+        // 页面加载时自动替换所有"次日"为准确日期 + 原有初始化逻辑
         window.onload = function() {
+            // 1. 获取次日准确日期
+            const nextDay = getNextDayDate();
+            
+            // 2. 替换页面中所有含"次日"的文字
+            document.getElementById('mainTitle').innerText = `${nextDay} 就餐人数录入（食堂管理员）`;
+            document.getElementById('lunchHeader').innerText = `${nextDay} 午餐人数`;
+            document.getElementById('dinnerHeader').innerText = `${nextDay} 晚餐人数`;
+            document.getElementById('statTitle').innerText = `${nextDay} 就餐人数统计`;
+            document.getElementById('statLunchTh').innerText = `${nextDay} 午餐人数`;
+            document.getElementById('statDinnerTh').innerText = `${nextDay} 晚餐人数`;
+            document.getElementById('tipText').innerText = `注：数据为${nextDay}就餐人数，保存在当前设备中，刷新页面后可点击按钮重新加载`;
+            
+            // 3. 保留原有初始化逻辑
             calculateTotal();
             loadSavedData();
             renderStatTable();
@@ -203,11 +232,15 @@
             document.getElementById('total-dinner').value = totalDinner;
         }
         
-        // 保存数据到本地存储
+        // 保存数据到本地存储（新增日期标识）
         function saveData() {
+            // 获取次日准确日期
+            const nextDay = getNextDayDate();
+            
             // 构造数据对象
             const mealData = {
-                date: new Date().toLocaleDateString(), // 录入日期
+                targetDate: nextDay, // 统计的目标日期（原date改为targetDate，避免混淆）
+                recordDate: new Date().toLocaleDateString(), // 录入日期
                 工务线路: {
                     lunch: parseInt(document.getElementById('gwxl-lunch').value || 0),
                     dinner: parseInt(document.getElementById('gwxl-dinner').value || 0)
@@ -240,7 +273,7 @@
             
             // 保存到本地存储
             localStorage.setItem('canteenMealData', JSON.stringify(mealData));
-            alert('人数保存成功！');
+            alert(`${nextDay} 就餐人数保存成功！`);
             
             // 刷新统计表格
             renderStatTable();
@@ -249,7 +282,7 @@
         // 加载本地存储的历史数据
         function loadSavedData() {
             const savedData = JSON.parse(localStorage.getItem('canteenMealData') || '{}');
-            if (!savedData.date) return; // 无历史数据则返回
+            if (!savedData.targetDate) return; // 无历史数据则返回
             
             // 填充各专业输入框
             document.getElementById('gwxl-lunch').value = savedData.工务线路.lunch || 0;
@@ -273,14 +306,14 @@
             statBody.innerHTML = ''; // 清空原有内容
             
             // 若无数据则提示
-            if (!savedData.date) {
+            if (!savedData.targetDate) {
                 statBody.innerHTML = '<tr><td colspan="3" style="color:#999;">暂无录入数据</td></tr>';
                 return;
             }
             
             // 遍历数据填充表格
             for (const [prof, data] of Object.entries(savedData)) {
-                if (prof === 'date') continue; // 跳过日期字段
+                if (prof === 'targetDate' || prof === 'recordDate') continue; // 跳过日期字段
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${prof}</td>
